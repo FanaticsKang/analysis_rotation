@@ -114,10 +114,50 @@ Eigen::Matrix3d Rdc_out = yaw.matrix() * pitch.matrix() * roll.matrix()
 
 注意`Eigen::AngleAxisd`的运算是以3.2节的方式计算, 而正好为第3.1节的旋转矩阵定义相差一个逆.
 
+### 4.3 对于Eigen库Euler Angle的理解
+Eigen库对于`Eigen::eularAngle`的解释如下:
+
+- Euler rotation is a set of three rotation of three angles over **three fixed axes**, defined by the EulerSystem given as a template parameter.
+- Only **intrinsic Euler systems** are supported for simplicity. If you want to use extrinsic Euler systems, just use the equal intrinsic opposite order for axes and angles.
+
+其中,明确定义坐标系是固定的(**fixed**), 也就是仅支持**intrinsic Euler System**. 
+如果要使用extrinsic Euler system, 
+- 旋转矩阵的求解需要提供相反的角度;
+- 或者**From...to...** 需要考虑相反的方向.
+
+### 4.4 Intrinsic v.s. Extrinsic Euler System
+两者的定义如下:
+- **Intrinsic rotations** are elemental rotations that occur about the axes of a coordinate system XYZ attached to a moving body. Therefore, they change their orientation after each elemental rotation.
+- **Extrinsic rotations** are elemental rotations that occur about the axes of the fixed coordinate system xyz. The XYZ system rotates, while xyz is fixed. 
+
+我的理解:
+1. 3.2节描述的外旋(Extrinsic Rotation), 起点是静态坐标系, 描述由静态坐标系旋转到动态坐标系的过程;
+2. `Eigen`库使用的是内旋(Intrinsic Rotation), 起点是动态坐标系, 描述由动态到静态的过程. 
+3. 其实本质上, 内旋和外旋都满足 **From...to...** 的基本原则, 但是其旋转矩阵的表示**相差一个逆**.
+```C++
+// roll pitch yaw, Eigen只支持Intrinsic Rotation
+Eigen::Vector3d euler_angle = Rdc.eulerAngles(2, 1, 0);
+
+Eigen::AngleAxisd roll(euler_angle(2), Eigen::Vector3d::UnitX());
+Eigen::AngleAxisd pitch(euler_angle(1), Eigen::Vector3d::UnitY());
+Eigen::AngleAxisd yaw(euler_angle(0), Eigen::Vector3d::UnitZ());
+
+// Eigen Intrinsic Euler 和 Rotation Matrix的关系
+Eigen::Matrix3d Rdc_intrinsic = yaw.matrix() * pitch.matrix() * roll.matrix();
+
+// Eigen Extrinsic Euler 和 Rotation Matrix的关系
+// Roll Pitch Yaw, 均以3.1.1节的公式计算, 相当于已经为之前的角取逆
+Eigen::Matrix3d Rcd_extrinsic =
+  Roll(euler_angle(2)) * Pitch(euler_angle(1)) * Yaw(euler_angle(0));
+
+Eigen::Matrix3d Rdc_extrinsic =
+      Yaw(-euler_angle(0)) * Pitch(-euler_angle(1)) * Roll(-euler_angle(2));
+```
+
 ## 5. 总结
 总体来说, 欧拉角的旋转有3个大坑:
 1. **From...to...**;
-2. 描述的是**坐标系的旋转角**还是坐标内**向量的旋转角**;
+2. 描述的是**坐标系的旋转角**(外旋, Extrinsic Rotaion)还是坐标内**向量的旋转角**(内旋, Intrinsic Rotation);
 3. 旋转顺序的问题.
 
 在工程交互过程中, 最好是传递四元数或者旋转矩阵, 这样只需要明晰**From...to...**即可.
